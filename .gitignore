@@ -1,0 +1,27 @@
+# =================================================================
+# .gitignore — chatbot-app
+# =================================================================
+
+# --- Configuration sensible (clé API, endpoint, etc.) ---
+backend/config.php
+.env
+.env.local
+.env.*.local
+
+# --- Données générées à l'exécution (logs, sauvegardes) ---
+backend/data/
+*.log
+
+# --- IDE / OS ---
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+
+# --- Node / dépendances (si utilisées) ---
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*

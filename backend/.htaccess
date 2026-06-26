@@ -1,0 +1,25 @@
+# =================================================================
+# .htaccess — Sécurité du backend
+# =================================================================
+
+# Désactiver l'affichage des erreurs PHP côté serveur
+# (redondant avec config.php, mais ceinture + bretelles)
+php_flag display_errors Off
+
+# Bloquer l'accès HTTP direct au fichier de configuration (clé API)
+<Files "config.php">
+    Require all denied
+</Files>
+
+# Bloquer l'accès direct au fichier de logs
+<Files "chat.log">
+    Require all denied
+</Files>
+
+# Protéger le dossier data/ (conversations sauvegardées)
+<Files "conversations.json">
+    Require all denied
+</Files>
+
+# Empêcher le listage des répertoires
+Options -Indexes

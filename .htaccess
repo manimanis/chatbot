@@ -1,0 +1,9 @@
+# Sécuriser le dossier backend (empêcher l'accès direct aux fichiers)
+<FilesMatch "\.(env|log|json)$">
+    Require all denied
+</FilesMatch>
+
+# Activer le rewrite engine si nécessaire
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+</IfModule>

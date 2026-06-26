@@ -1,0 +1,361 @@
+<!DOCTYPE html>
+<html lang="fr">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Chatbot IA — Vue.js + PHP</title>
+
+  <!-- Google Fonts : Inter + JetBrains Mono -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+
+  <!-- Highlight.js — coloration syntaxique du code -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github-dark.min.css">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+
+  <!-- Feuille de styles personnalisée -->
+  <link rel="stylesheet" href="frontend/styles.css">
+
+  <!-- Vendor JS -->
+  <script src="frontend/vendor/tailwindcss.min.js"></script>
+  <script src="frontend/vendor/vue.global.prod.js"></script>
+  <script src="frontend/vendor/marked.min.js"></script>
+  <script src="frontend/vendor/dompurify.min.js"></script>
+</head>
+
+<body>
+  <!-- Particules de fond animées -->
+  <canvas id="particles-canvas"></canvas>
+
+  <!-- Point de montage de l'application Vue -->
+  <div id="app">
+    <!-- Overlay sidebar mobile -->
+    <div class="sidebar-overlay" :class="{ visible: sidebarOpen }" @click="sidebarOpen = false"></div>
+
+    <!-- ============ SIDEBAR HISTORIQUE ============ -->
+    <aside class="sidebar" :class="{ open: sidebarOpen }">
+      <div class="sidebar-header">
+        <h2>💬 Historique</h2>
+        <button class="sidebar-close" @click="sidebarOpen = false">✕</button>
+      </div>
+      <div class="sidebar-actions">
+        <button class="btn btn-new-chat" @click="newConversation">
+          ➕ Nouvelle conversation
+        </button>
+      </div>
+      <div class="sidebar-conversations">
+        <div v-if="conversations.length === 0" class="sidebar-empty">
+          <p>Aucune conversation enregistrée.</p>
+        </div>
+        <div v-for="(conv, idx) in conversations" :key="conv.id" class="sidebar-conv-item"
+          :class="{ active: conv.id === activeConversationId }" @click="loadConversation(conv.id)">
+          <div class="conv-preview">💬 {{ conv.preview || 'Conversation vide' }}</div>
+          <div class="conv-meta">
+            <span>{{ conv.messageCount }} messages</span>
+            <span>{{ formatRelativeTime(conv.updatedAt) }}</span>
+          </div>
+          <button class="conv-delete" @click.stop="deleteConversation(conv.id)" title="Supprimer">🗑️</button>
+        </div>
+      </div>
+    </aside>
+
+    <div class="chat-container">
+
+      <!-- ============ EN-TÊTE ============ -->
+      <header class="chat-header">
+        <div class="header-left">
+          <button class="sidebar-toggle" @click="sidebarOpen = !sidebarOpen" title="Ouvrir l'historique">☰</button>
+          <!-- Avatar SVG Bot -->
+          <div class="bot-avatar">
+            <svg viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <circle cx="24" cy="24" r="22" fill="rgba(255,255,255,0.2)" stroke="rgba(255,255,255,0.4)" stroke-width="1.5"/>
+              <circle cx="16" cy="20" r="3" fill="#fff"/>
+              <circle cx="32" cy="20" r="3" fill="#fff"/>
+              <circle cx="16" cy="20" r="1.5" fill="#667eea"/>
+              <circle cx="32" cy="20" r="1.5" fill="#667eea"/>
+              <rect x="14" y="30" width="20" height="3" rx="1.5" fill="rgba(255,255,255,0.7)"/>
+              <rect x="18" y="27" width="12" height="1" rx="0.5" fill="rgba(255,255,255,0.4)"/>
+              <circle cx="24" cy="8" r="3" fill="rgba(255,255,255,0.5)"/>
+              <line x1="24" y1="11" x2="24" y2="14" stroke="rgba(255,255,255,0.5)" stroke-width="1.5"/>
+            </svg>
+          </div>
+          <div>
+            <h1>Chatbot IA</h1>
+            <p class="status">
+              <span class="dot" :class="{ online: !loading, busy: loading }"></span>
+              {{ loading ? 'Le bot répond...' : 'En ligne' }}
+            </p>
+          </div>
+        </div>
+
+        <div class="header-actions">
+          <!-- Mode pédagogique -->
+          <div class="pedagogy-selector">
+            <button class="pedagogy-btn" @click="setPedagogyMode('debutant')"
+              :class="{ active: pedagogyMode === 'debutant' }" title="Débutant">🟢</button>
+            <button class="pedagogy-btn" @click="setPedagogyMode('intermediaire')"
+              :class="{ active: pedagogyMode === 'intermediaire' }" title="Intermédiaire">🟡</button>
+            <button class="pedagogy-btn" @click="setPedagogyMode('avance')"
+              :class="{ active: pedagogyMode === 'avance' }" title="Avancé">🔴</button>
+            <span class="pedagogy-label">{{ pedagogyLabels[pedagogyMode] }}</span>
+          </div>
+
+          <!-- Barre de recherche -->
+          <div class="search-wrapper" :class="{ open: searchOpen }">
+            <button class="icon-btn" @click="toggleSearch" title="Rechercher dans la conversation">
+              <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><line x1="16.5" y1="16.5" x2="21" y2="21"/></svg>
+            </button>
+            <div v-if="searchOpen" class="search-bar-inline">
+              <input v-model="searchQuery" @input="performSearch" placeholder="Rechercher..."
+                class="search-input-inline" ref="searchInput" />
+              <span class="search-count" v-if="searchResults.length > 0">
+                {{ searchIndex + 1 }}/{{ searchResults.length }}
+              </span>
+              <button class="search-nav-btn" @click="prevSearchResult" title="Précédent">
+                <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="18 15 12 9 6 15"/></svg>
+              </button>
+              <button class="search-nav-btn" @click="nextSearchResult" title="Suivant">
+                <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"/></svg>
+              </button>
+            </div>
+          </div>
+
+          <!-- Theme toggle -->
+          <button class="icon-btn theme-toggle" @click="toggleTheme" :title="isDark ? 'Mode clair' : 'Mode sombre'">
+            <span class="theme-icon" :class="{ rotating: themeTransitioning }">{{ isDark ? '☀️' : '🌙' }}</span>
+          </button>
+
+          <!-- Menu actions -->
+          <div class="header-menu" ref="headerMenuRef">
+            <button class="icon-btn menu-trigger" @click="toggleMenu($event)" title="Plus d'options">
+              <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor"><circle cx="12" cy="5" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="12" cy="19" r="2"/></svg>
+            </button>
+          </div>
+        </div>
+      </header>
+
+      <!-- ============ ZONE DES MESSAGES ============ -->
+      <main class="chat-messages" ref="messagesContainer">
+
+        <!-- Message de bienvenue avec quick prompts -->
+        <div v-if="messages.length === 0" class="welcome">
+          <div class="welcome-icon">🗃️</div>
+          <h2>Bienvenue ! Apprenons le SQL ensemble</h2>
+          <p>Je suis votre assistant pour apprendre les bases de données et le SQL.<br>Posez une question ou choisissez un sujet ci-dessous.</p>
+          <div class="quick-prompts">
+            <button v-for="(prompt, idx) in quickPrompts" :key="idx" class="quick-prompt-btn"
+              @click="sendQuickPrompt(prompt)" :style="{ animationDelay: (idx * 0.08) + 's' }">
+              <span class="qp-icon">{{ prompt.icon }}</span>
+              <span class="qp-text">{{ prompt.text }}</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- Boucle sur les messages -->
+        <div v-for="(msg, msgIdx) in messages" :key="msg.id" class="message-row"
+          :class="msg.role === 'user' ? 'row-user' : 'row-bot'"
+          :style="{ animationDelay: (msgIdx * 0.03) + 's' }">
+
+          <!-- Avatar user à droite (SVG) -->
+          <div v-if="msg.role === 'user'" class="msg-avatar user-avatar">
+            <svg viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <circle cx="16" cy="12" r="6" fill="#fff" opacity="0.9"/>
+              <ellipse cx="16" cy="28" rx="10" ry="7" fill="#fff" opacity="0.7"/>
+            </svg>
+          </div>
+
+          <!-- Avatar bot à gauche (SVG) -->
+          <div v-if="msg.role === 'assistant'" class="msg-avatar bot-avatar-small">
+            <svg viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <circle cx="16" cy="16" r="14" fill="var(--bg-gradient)" opacity="0.15"/>
+              <circle cx="16" cy="16" r="13" stroke="var(--text-muted)" stroke-width="1" fill="none"/>
+              <circle cx="11" cy="14" r="2" fill="var(--text-primary)"/>
+              <circle cx="21" cy="14" r="2" fill="var(--text-primary)"/>
+              <rect x="10" y="20" width="12" height="2" rx="1" fill="var(--text-muted)" opacity="0.6"/>
+              <circle cx="16" cy="5" r="2" fill="var(--primary-start)" opacity="0.6"/>
+              <line x1="16" y1="7" x2="16" y2="9" stroke="var(--primary-start)" stroke-width="1" opacity="0.6"/>
+            </svg>
+          </div>
+
+          <div class="message-bubble" :class="msg.role">
+            <!-- Actions sur la bulle (hover) -->
+            <div class="bubble-actions">
+              <button v-if="msg.role === 'assistant'" class="bubble-action-btn copy-btn-icon" @click="copyMessage(msg.content, $event)"
+                title="Copier le message">
+                <svg viewBox="0 0 16 16" width="14" height="14" fill="currentColor"><rect x="5" y="5" width="9" height="9" rx="1.5" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M5 11H3.5A1.5 1.5 0 012 9.5v-7A1.5 1.5 0 013.5 1h7A1.5 1.5 0 0112 2.5V5" fill="none" stroke="currentColor" stroke-width="1.5"/></svg>
+              </button>
+              <button v-if="msg.role === 'assistant' && !loading" class="bubble-action-btn regenerate-btn" @click="sendMessage(msg.id)"
+                title="Regénérer la réponse">
+                <svg viewBox="0 0 16 16" width="14" height="14" fill="currentColor"><path d="M13.5 8a5.5 5.5 0 01-9.79 3.46l-1.42 1.42A7.5 7.5 0 108 .5V3l4-3.5L8 1v2.5A5.5 5.5 0 0113.5 8z" fill="none" stroke="currentColor" stroke-width="1.3"/></svg>
+              </button>
+              <button v-if="!loading" class="bubble-action-btn delete-btn" @click="deleteMessage(msg.id)"
+                title="Supprimer ce message">
+                <svg viewBox="0 0 16 16" width="14" height="14" fill="currentColor"><path d="M5.5 5.5A.5.5 0 016 6v6a.5.5 0 01-1 0V6a.5.5 0 01.5-.5zm2.5 0a.5.5 0 01.5.5v6a.5.5 0 01-1 0V6a.5.5 0 01.5-.5zm3 .5a.5.5 0 00-1 0v6a.5.5 0 001 0V6z" fill="none" stroke="currentColor" stroke-width="1.2"/><path d="M14.5 3a1 1 0 01-1 1H13v9a2 2 0 01-2 2H5a2 2 0 01-2-2V4h-.5a1 1 0 010-2h3a1 1 0 011-1h2a1 1 0 011 1h3a1 1 0 011 1zM4.118 4L4 4.059V13a1 1 0 001 1h6a1 1 0 001-1V4.059L11.882 4H4.118z" fill="currentColor"/></svg>
+              </button>
+            </div>
+
+            <!-- Mode édition (dernier message utilisateur) -->
+            <div v-if="editingMessageId === msg.id" class="edit-mode">
+              <textarea v-model="editingContent" class="edit-textarea" @keydown="handleEditKeydown"
+                ref="editTextarea" autofocus></textarea>
+              <div class="edit-actions">
+                <button class="btn btn-primary btn-sm" @click="saveEdit">💾 Sauvegarder</button>
+                <button class="btn btn-ghost-sm" @click="cancelEdit">✕ Annuler</button>
+              </div>
+            </div>
+
+            <!-- Affichage normal du message -->
+            <template v-else>
+              <div class="message-content" v-html="convertToHTML(msg.content)"
+                :title="msg.role === 'user' ? 'Double-clic pour éditer' : ''"
+                @dblclick="startEditMessage(msg)"></div>
+              <div class="message-time">{{ formatRelativeTime(msg.timestamp) }}</div>
+            </template>
+          </div>
+        </div>
+
+        <!-- Bouton flottant scroll-to-bottom -->
+        <button class="scroll-bottom-btn" :class="{ visible: showScrollBtn }" @click="scrollToBottom"
+          title="Aller en bas">
+          <svg viewBox="0 0 20 20" width="18" height="18" fill="currentColor"><path d="M10 14l-5-5h10l-5 5z"/></svg>
+        </button>
+
+        <!-- Indicateur de chargement (vague animée) -->
+        <div v-if="loading" class="message-row row-bot">
+          <div class="msg-avatar bot-avatar-small">
+            <svg viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <circle cx="16" cy="16" r="14" fill="var(--bg-gradient)" opacity="0.15"/>
+              <circle cx="16" cy="16" r="13" stroke="var(--text-muted)" stroke-width="1" fill="none"/>
+              <circle cx="11" cy="14" r="2" fill="var(--text-primary)"/>
+              <circle cx="21" cy="14" r="2" fill="var(--text-primary)"/>
+              <rect x="10" y="20" width="12" height="2" rx="1" fill="var(--text-muted)" opacity="0.6"/>
+              <circle cx="16" cy="5" r="2" fill="var(--primary-start)" opacity="0.6"/>
+              <line x1="16" y1="7" x2="16" y2="9" stroke="var(--primary-start)" stroke-width="1" opacity="0.6"/>
+            </svg>
+          </div>
+          <div class="message-bubble assistant typing-wave">
+            <div class="wave-bar"></div>
+            <div class="wave-bar"></div>
+            <div class="wave-bar"></div>
+            <div class="wave-bar"></div>
+            <div class="wave-bar"></div>
+          </div>
+        </div>
+
+        <!-- Affichage des erreurs côté UI -->
+        <div v-if="errorMessage" class="error-banner">
+          ⚠️ {{ errorMessage }}
+        </div>
+      </main>
+
+      <!-- ============ ZONE DE SAISIE ============ -->
+      <footer class="chat-input-area">
+        <div class="chat-input-wrapper">
+          <button class="input-action-btn" title="Joindre un fichier (bientôt disponible)">
+            <svg viewBox="0 0 20 20" width="18" height="18" fill="currentColor"><path d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L18.5 11" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+          </button>
+          <textarea v-model="userInput" :disabled="loading" placeholder="Écrivez votre message..." rows="1"
+            autocomplete="off" @input="autoResizeTextarea" ref="chatTextarea"></textarea>
+          <div class="input-counter" :class="{ warn: userInput.length > 3500 }" v-if="userInput.length > 0">
+            {{ userInput.length }}
+          </div>
+          <button class="send-btn" @click="sendMessage" :disabled="loading || !userInput.trim()"
+            :class="{ active: !loading && userInput.trim(), pulsing: !loading && userInput.trim() }">
+            <svg v-if="!loading" viewBox="0 0 20 20" width="18" height="18" fill="currentColor">
+              <path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z" fill="currentColor"/>
+            </svg>
+            <span v-else class="send-loading">
+              <span class="dot-typing"></span>
+            </span>
+          </button>
+        </div>
+        <p class="input-hint">Enter pour envoyer · Shift+Enter pour nouvelle ligne</p>
+      </footer>
+
+    </div>
+  </div>
+
+  <!-- Notification toast -->
+  <div class="toast" ref="toastEl">
+    <span class="toast-icon">{{ toastMessage.charAt(0) }}</span>
+    <span>{{ toastMessage.slice(2) }}</span>
+  </div>
+
+  <!-- Canvas de particules -->
+  <script>
+    (function() {
+      const canvas = document.getElementById('particles-canvas');
+      if (!canvas) return;
+      const ctx = canvas.getContext('2d');
+      let particles = [];
+      let animId;
+      let w, h;
+
+      function resize() {
+        w = canvas.width = window.innerWidth;
+        h = canvas.height = window.innerHeight;
+      }
+      resize();
+      window.addEventListener('resize', resize);
+
+      function createParticles() {
+        particles = [];
+        const count = Math.min(40, Math.floor((w * h) / 25000));
+        for (let i = 0; i < count; i++) {
+          particles.push({
+            x: Math.random() * w,
+            y: Math.random() * h,
+            r: Math.random() * 2 + 0.5,
+            dx: (Math.random() - 0.5) * 0.3,
+            dy: (Math.random() - 0.5) * 0.3,
+            opacity: Math.random() * 0.3 + 0.1
+          });
+        }
+      }
+      createParticles();
+
+      function draw() {
+        ctx.clearRect(0, 0, w, h);
+        const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
+        const color = isDark ? '255,255,255' : '255,255,255';
+        particles.forEach(p => {
+          p.x += p.dx;
+          p.y += p.dy;
+          if (p.x < 0) p.x = w;
+          if (p.x > w) p.x = 0;
+          if (p.y < 0) p.y = h;
+          if (p.y > h) p.y = 0;
+          ctx.beginPath();
+          ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
+          ctx.fillStyle = `rgba(${color},${p.opacity})`;
+          ctx.fill();
+        });
+        // Draw lines between close particles
+        for (let i = 0; i < particles.length; i++) {
+          for (let j = i + 1; j < particles.length; j++) {
+            const dx = particles[i].x - particles[j].x;
+            const dy = particles[i].y - particles[j].y;
+            const dist = Math.sqrt(dx * dx + dy * dy);
+            if (dist < 120) {
+              ctx.beginPath();
+              ctx.moveTo(particles[i].x, particles[i].y);
+              ctx.lineTo(particles[j].x, particles[j].y);
+              ctx.strokeStyle = `rgba(${color},${0.08 * (1 - dist / 120)})`;
+              ctx.lineWidth = 0.5;
+              ctx.stroke();
+            }
+          }
+        }
+        animId = requestAnimationFrame(draw);
+      }
+      draw();
+    })();
+  </script>
+
+  <!-- Script de l'application Vue (Composition API) -->
+  <script src="frontend/app.js"></script>
+</body>
+
+</html>
