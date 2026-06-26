@@ -516,7 +516,18 @@ createApp({
     };
 
     /* ---------- Utilitaires ---------- */
-    const genId = () => Date.now() + '-' + Math.floor(Math.random() * 10000);
+    // Génération d'UUID fiable (crypto API) avec fallback
+    const genId = () => {
+      try {
+        return crypto.randomUUID();
+      } catch (_) {
+        // Fallback : UUID v4 compatible
+        return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
+          const r = Math.random() * 16 | 0;
+          return (c === 'x' ? r : (r & 0x3 | 0x8)).toString(16);
+        });
+      }
+    };
 
     const scrollToBottom = async () => {
       await nextTick();
@@ -665,7 +676,7 @@ createApp({
         // Injecter le contexte pédagogique dans le prompt
         const pedagogyContext = PEDAGOGY_PROMPTS[pedagogyMode.value] || '';
         const messageWithContext = pedagogyContext
-          ? `[Contexte pédagogique : ${pedagogyContext}]\n\n${text}`
+          ? `[Contexte pédagogique : ${pedagogyContext}]`
           : text;
 
         const response = await fetch(API_URL, {
@@ -826,24 +837,26 @@ createApp({
 
     const convertToHTML = (text) => {
       if (!text) return '';
-      // 1. Markdown → HTML
-      let html = marked.parse(text);
-      // 2. Protection XSS
-      if (typeof DOMPurify !== 'undefined' && DOMPurify.sanitize) {
-        html = DOMPurify.sanitize(html);
-      } else {
-        html = html.replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '');
-        html = html.replace(/on\w+="[^"]*"/gi, '');
-        html = html.replace(/on\w+='[^']*'/gi, '');
+      // 1. Vérifier que DOMPurify est disponible (obligatoire)
+      if (typeof DOMPurify === 'undefined' || typeof DOMPurify.sanitize !== 'function') {
+        console.error('DOMPurify n\'est pas chargé — abandon du rendu pour sécurité XSS');
+        return '<p><em>Erreur de sécurité : impossible d\'afficher le message.</em></p>';
       }
-      // 3. Liens cliquables
+      // 2. Markdown → HTML
+      let html = marked.parse(text);
+      // 3. Protection XSS avec configuration stricte
+      html = DOMPurify.sanitize(html, {
+        ALLOWED_PROTOCOLS: ['http', 'https', 'mailto'],
+        FORBID_TAGS: ['style', 'form', 'input', 'button', 'select', 'textarea']
+      });
+      // 4. Liens cliquables (uniquement si aucun lien HTML n'existe déjà)
       if (!/<a\s/i.test(html)) {
         html = html.replace(
           /(https?:\/\/[^\s<"]+)/gi,
           (url) => `<a href="${url}" target="_blank" rel="noopener noreferrer">${url}</a>`
         );
       }
-      // 4. Highlight.js sur les blocs de code après rendu
+      // 5. Highlight.js sur les blocs de code après rendu
       nextTick(() => highlightAllCode());
       return html;
     };
