@@ -268,7 +268,7 @@
           <div class="input-counter" :class="{ warn: userInput.length > 3500 }" v-if="userInput.length > 0">
             {{ userInput.length }}
           </div>
-          <button class="send-btn" @click="sendMessage" :disabled="loading || !userInput.trim()"
+          <button class="send-btn" @click="sendMessage()" :disabled="loading || !userInput.trim()"
             :class="{ active: !loading && userInput.trim(), pulsing: !loading && userInput.trim() }">
             <svg v-if="!loading" viewBox="0 0 20 20" width="18" height="18" fill="currentColor">
               <path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z" fill="currentColor"/>
