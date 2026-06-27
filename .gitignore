@@ -3,7 +3,6 @@
 # =================================================================
 
 # --- Configuration sensible (clé API, endpoint, etc.) ---
-backend/config.php
 .env
 .env.local
 .env.*.local

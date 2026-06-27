@@ -730,6 +730,23 @@ createApp({
     };
 
     /* ---------------------------------------------------------
+       Renvoyer un message utilisateur (utile en cas d'erreur)
+    --------------------------------------------------------- */
+    const resendMessage = async (msgId) => {
+      const idx = messages.findIndex(m => m.id === msgId);
+      if (idx === -1) return;
+      const userMsg = messages[idx];
+      if (userMsg.role !== 'user') return;
+
+      // Supprimer les messages après celui-ci (la réponse associée)
+      messages.splice(idx + 1);
+
+      // Remplir l'input et envoyer
+      userInput.value = userMsg.content;
+      sendMessage();
+    };
+
+    /* ---------------------------------------------------------
        Copier
     --------------------------------------------------------- */
     const copyMessage = async (text, event) => {
@@ -922,7 +939,7 @@ createApp({
       messagesContainer, chatTextarea, toastEl, toastMessage,
       showScrollBtn, isDark, themeTransitioning,
       editingMessageId, editingContent,
-      sendMessage, saveConversation, clearConversation,
+      sendMessage, resendMessage, saveConversation, clearConversation,
       formatRelativeTime, convertToHTML, toggleTheme,
       autoResizeTextarea, copyMessage, deleteMessage,
       startEditMessage, cancelEdit, saveEdit, handleEditKeydown, scrollToBottom,

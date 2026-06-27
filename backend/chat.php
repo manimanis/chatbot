@@ -86,7 +86,7 @@ if (!is_dir(__DIR__ . '/data')) {
 // ---------------------------------------------------------------
 // 3) Rate Limiting (session + IP)
 // ---------------------------------------------------------------
-$minInterval = 2; // seconde minimum entre deux requêtes
+$minInterval = 1; // seconde minimum entre deux requêtes
 
 // 3a) Vérification par session PHP
 if (session_status() === PHP_SESSION_NONE) {
@@ -213,7 +213,7 @@ $apiMessages[] = [
 // 5) Préparation du corps de requête vers l'API IA
 // ---------------------------------------------------------------
 $body = json_encode([
-    'model' => $MODEL,
+    'model' => $env_vars['API_MODEL'],
     'messages' => $apiMessages,
     'temperature' => 0.7
 ], JSON_UNESCAPED_UNICODE);
@@ -228,14 +228,14 @@ $httpCode = 0;
 $curlError = '';
 
 while ($attempt <= $maxRetries) {
-    $ch = curl_init($API_URL);
+    $ch = curl_init($env_vars['API_URL']);
 
     curl_setopt_array($ch, [
         CURLOPT_RETURNTRANSFER => true,
         CURLOPT_POST => true,
         CURLOPT_POSTFIELDS => $body,
         CURLOPT_HTTPHEADER => [
-            'Authorization: Bearer ' . $API_KEY,
+            'Authorization: Bearer ' . $env_vars['API_KEY'],
             'Content-Type: application/json',
             'Accept: application/json'
         ],
@@ -258,7 +258,7 @@ while ($attempt <= $maxRetries) {
         $attempt++;
         if ($attempt > $maxRetries) {
             chatLog('Erreur réseau cURL après ' . $maxRetries . ' tentatives : ' . $curlError);
-            failWith('Erreur réseau : impossible de joindre l\'API IA après plusieurs tentatives.', 502);
+            failWith('Erreur réseau : impossible de joindre l\'API IA après plusieurs tentatives. '.json_encode($env_vars), 502);
         }
         // Backoff exponentiel : 1s, 2s
         $delay = pow(2, $attempt - 1);
@@ -313,6 +313,6 @@ chatLog('OK — message traité (' . strlen($message) . ' car. en entrée, '
 
 echo json_encode([
     'reply' => $reply,
-    'model' => $apiData['model'] ?? $MODEL,
+    'model' => $apiData['model'] ?? $env_vars['API_MODEL'],
     'usage' => $apiData['usage'] ?? null,
 ], JSON_UNESCAPED_UNICODE);
