@@ -6,7 +6,7 @@
  * Reçoit : { message: string, history: [{role, content}, ...] }
  * Renvoie : { reply: string }  OU  { error: string }
  *
- * Étapes :
+ * Ã‰tapes :
  *   1. Configuration des en-têtes CORS + JSON
  *   2. Chargement de la configuration (clé API, endpoint, modèle)
  *   3. Lecture et validation du payload JSON
@@ -127,7 +127,7 @@ if (isset($rateData[$ip]) && ($now - $rateData[$ip]['time']) < $minInterval) {
     failWith('Trop de requêtes. Veuillez patienter.', 429);
 }
 
-// Mettre à jour le timestamp pour cette IP
+// Mettre Ã  jour le timestamp pour cette IP
 $rateData[$ip] = ['time' => $now];
 $written = @file_put_contents($rateFile, json_encode($rateData));
 if ($written === false) {
@@ -154,6 +154,12 @@ $message = trim((string)($payload['message'] ?? ''));
 if ($message === '') {
     chatLog('Message vide reçu');
     failWith('Le message ne peut pas être vide.', 400);
+}
+
+// Récupération de la spécialité (bd par défaut)
+$specialty = trim((string)($payload["specialty"] ?? "bd"));
+if (!in_array($specialty, ["bd", "francais"], true)) {
+    $specialty = "bd";
 }
 
 // Limite de taille du message (protection contre l'épuisement des tokens)
@@ -192,10 +198,21 @@ if (count($cleanHistory) > $MAX_HISTORY) {
 // ---------------------------------------------------------------
 $apiMessages = [];
 
+// Chargement du prompt système selon la spécialité sélectionnée
+$systemPromptFile = $PROMPTS_DIR . "/" . $specialty . ".txt";
+$systemPrompt = "";
+if (is_file($systemPromptFile) && is_readable($systemPromptFile)) {
+    $systemPrompt = file_get_contents($systemPromptFile);
+}
+if ($systemPrompt === "") {
+    chatLog("Prompt systeme introuvable pour la specialite : " . $specialty);
+    failWith("Configuration du prompt systeme manquante.", 500);
+}
+
 // Message système en premier (comportement du bot)
 $apiMessages[] = [
     'role' => 'system',
-    'content' => $SYSTEM_PROMPT
+    'content' => $systemPrompt
 ];
 
 // Ajout de l'historique filtré

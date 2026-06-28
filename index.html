@@ -105,6 +105,16 @@
             <span class="pedagogy-label">{{ pedagogyLabels[pedagogyMode] }}</span>
           </div>
 
+          <!-- Sélecteur de spécialité -->
+          <div class="specialty-selector">
+            <button class="specialty-btn" @click="setSpecialty('bd')"
+              :class="{ active: specialty === 'bd' }" title="Bases de données">🗄️</button>
+            <button class="specialty-btn" @click="setSpecialty('francais')"
+              :class="{ active: specialty === 'francais' }" title="Français">📝</button>
+            <span class="specialty-label">{{ specialtyLabels[specialty] }}</span>
+          </div>
+
+
           <!-- Barre de recherche -->
           <div class="search-wrapper" :class="{ open: searchOpen }">
             <button class="icon-btn" @click="toggleSearch" title="Rechercher dans la conversation">

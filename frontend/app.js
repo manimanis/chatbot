@@ -1,4 +1,4 @@
-/* =================================================================
+﻿/* =================================================================
    Chatbot IA — Application Vue 3 (Composition API) v3.0
    -----------------------------------------------------------------
    Fonctionnalités :
@@ -48,6 +48,26 @@ createApp({
     const API_URL = 'backend/chat.php';
     const isDark = ref(false);
     const themeTransitioning = ref(false);
+
+    /* ---------- Specialite ---------- */
+    const specialty = ref("bd");
+    const SPECIALTY_KEY = "chatbot-specialty";
+    const specialtyLabels = {
+      bd: "🗄️ Bases de données",
+      francais: "📝 Français"
+    };
+
+    const setSpecialty = (mode) => {
+      specialty.value = mode;
+      localStorage.setItem(SPECIALTY_KEY, mode);
+    };
+
+    const loadSpecialty = () => {
+      const saved = localStorage.getItem(SPECIALTY_KEY);
+      if (saved && ["bd", "francais"].includes(saved)) {
+        specialty.value = saved;
+      }
+    };
 
     /* ---------- Sidebar / Conversations ---------- */
     const sidebarOpen = ref(false);
@@ -368,6 +388,7 @@ createApp({
       if (isDark.value) {
         document.documentElement.setAttribute('data-theme', 'dark');
       }
+      loadSpecialty();
       loadPedagogyMode();
       loadConversationsFromStorage();
       document.addEventListener('click', closeMenuOnOutsideClick);
@@ -682,7 +703,7 @@ createApp({
         const response = await fetch(API_URL, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ message: messageWithContext, history: recentHistory })
+          body: JSON.stringify({ message: messageWithContext, history: recentHistory, specialty: specialty.value })
         });
 
         if (!response.ok) {
@@ -949,6 +970,8 @@ createApp({
       newConversation, loadConversation, deleteConversation,
       // Pedagogy
       pedagogyMode, pedagogyLabels, setPedagogyMode,
+      // Specialty
+      specialty, specialtyLabels, setSpecialty,
       // Search
       searchOpen, searchQuery, searchResults, searchIndex,
       toggleSearch, performSearch, nextSearchResult, prevSearchResult,
